@@ -314,7 +314,8 @@ class MainActivity : ComponentActivity() {
             data = ChatPacketData(text = text),
             sender = myId.value,
             receiver = peerId.value,
-            chatId = newUid
+            chatId = newUid,
+            createdAt = utcTimestamp
         )
     }
 
@@ -385,10 +386,9 @@ class MainActivity : ComponentActivity() {
             chatBox = ChatBox(
                 "https://fir-chat-ad096-default-rtdb.asia-southeast1.firebasedatabase.app",
                 "messages",
-                getRoom()
+                getRoom(),
+                chats
             )
-            chatBox?.setConsumer(chats)
-            chatBox?.startListening()
             //listenRoom()
             setPage()
             populate()

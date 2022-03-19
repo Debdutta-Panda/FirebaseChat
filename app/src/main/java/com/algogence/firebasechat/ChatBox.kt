@@ -1,5 +1,6 @@
 package com.algogence.firebasechat
 
+import android.util.Log
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.google.firebase.database.DataSnapshot
@@ -13,9 +14,9 @@ import org.json.JSONObject
 class ChatBox(
     private val url: String,
     private val bucket: String,
-    private val room: String
+    private val room: String,
+    private val list: SnapshotStateList<Chat>
 ) {
-    private var list: SnapshotStateList<Chat>? = null
     private val firepo = Firepo(url,"$bucket/$room")
     enum class ChatEvent{
         ADDED,
@@ -23,10 +24,6 @@ class ChatBox(
         CHANGED,
         MOVED,
         CANCELLED
-    }
-
-    fun setConsumer(list: SnapshotStateList<Chat>){
-        this.list = list
     }
     private val DataSnapshot.toChat: Chat?
         get() {
@@ -39,30 +36,39 @@ class ChatBox(
             }
             return chat
         }
-    fun onChildEvent(event: ChatEvent,chat: Chat?){
+    private fun onChildEvent(event: ChatEvent, chat: Chat?){
         when(event){
             ChatEvent.ADDED -> {
                 if(chat!=null){
-                    list?.add(chat)
+                    val index = list.indexOfFirst {
+                        it.chatId==chat.chatId
+                    }
+                    if(index > -1){
+                        list[index] = chat
+                    }
+                    else{
+                        list.add(chat)
+                        sortList()
+                    }
                 }
             }
             ChatEvent.REMOVED -> {
                 if(chat!=null){
-                    val index = list?.indexOfFirst {
+                    val index = list.indexOfFirst {
                         it.chatId == chat.chatId
-                    }?:-1
+                    }
                     if(index > -1){
-                        list?.removeAt(index)
+                        list.removeAt(index)
                     }
                 }
             }
             ChatEvent.CHANGED -> {
                 if(chat!=null){
-                    val index = list?.indexOfFirst {
+                    val index = list.indexOfFirst {
                         it.chatId == chat.chatId
-                    }?:-1
+                    }
                     if(index > -1){
-                        list?.set(index,chat)
+                        list.set(index,chat)
                     }
                 }
             }
@@ -75,6 +81,13 @@ class ChatBox(
         }
         childEventListener?.invoke(event,chat)
     }
+
+    private fun sortList() {
+        list.sortBy {
+            it.createdAt
+        }
+    }
+
     var childEventListener: ((ChatEvent,Chat?)->Unit)? = null
     init {
         firepo.childEvent = {
@@ -110,21 +123,15 @@ class ChatBox(
     suspend fun chats(): List<Chat>{
         val snapshot = firepo.snapshot() ?: return emptyList()
         val value = snapshot.value
-        val j = try {
-            JSONObject(value.toString())
-        } catch (e: Exception) {
-            null
-        } ?: return emptyList()
         val list = mutableListOf<Chat>()
-        j.keys().forEach {
-            val v = j.getString(it)
-            val chat: Chat? = try {
-                Gson().fromJson(v,Chat::class.java)
-            } catch (e: Exception) {
-                null
-            }
-            if(chat!=null){
-                list.add(chat)
+        if(value is HashMap<*,*>){
+            value.forEach {
+                val s = it.value
+                val js = Gson().toJson(s)
+                val chat = Chat.fromString(js)
+                if(chat!=null){
+                    list.add(chat)
+                }
             }
         }
         return list
@@ -142,16 +149,21 @@ class ChatBox(
         )
     }
 
-    fun startListening(){
+    private fun startListening(){
         CoroutineScope(Dispatchers.IO).launch {
+            val s = System.currentTimeMillis()
             val chats = chats()
-            list?.addAll(chats)
+            val e = System.currentTimeMillis()
+            val d = e - s
+            Log.d("time_elapsed",d.toString())
+            list.addAll(chats)
+            sortList()
             firepo.startListening()
         }
 
     }
 
-    fun stopListening(){
+    private fun stopListening(){
         firepo.stopListening()
     }
 }

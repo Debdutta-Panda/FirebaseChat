@@ -12,7 +12,20 @@ data class Chat(
     var receivedAt: Long = 0,
     var seenAt: Long = 0,
     var deleted: Boolean = false
-)
+){
+    companion object {
+        fun fromString(json: String): Chat? {
+            try {
+                return Gson().fromJson(json, Chat::class.java)
+            } catch (e: Exception) {
+            }
+            return null
+        }
+    }
+    fun jsonString(): String {
+        return Gson().toJson(this)
+    }
+}
 
 
 
@@ -50,6 +63,9 @@ data class ChatPacketAttachment(
             name,
             json
         )
+    }
+    fun jsonString(): String {
+        return Gson().toJson(this)
     }
 }
 
