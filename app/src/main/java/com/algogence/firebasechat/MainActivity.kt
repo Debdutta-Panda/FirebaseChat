@@ -33,6 +33,8 @@ import com.pixplicity.easyprefs.library.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.joda.time.DateTime
+import org.joda.time.DateTimeZone
 
 
 class MainActivity : ComponentActivity() {
@@ -42,47 +44,6 @@ class MainActivity : ComponentActivity() {
         PEER,
         CHAT
     }
-
-
-    /*private val valueEventListener = object : ValueEventListener {
-        override fun onDataChange(dataSnapshot: DataSnapshot) {
-            val numChildren = dataSnapshot.childrenCount
-            val value = dataSnapshot.value.toString()
-            Log.d("value_event_single",numChildren.toString())
-            Log.d("value_event_single",value)
-        }
-
-        override fun onCancelled(databaseError: DatabaseError) {}
-    }*/
-    //private var isListening = false
-    /*private val childEventListener = object: ChildEventListener{
-        override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
-            Log.d("child_event_add",snapshot.key.toString())
-            val value = snapshot.value
-            Log.d("child_event_add_value",value.toString())
-        }
-
-        override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
-            Log.d("child_event_change",snapshot.key.toString())
-        }
-
-        override fun onChildRemoved(snapshot: DataSnapshot) {
-            Log.d("child_event_remove","removed")
-        }
-
-        override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {
-            Log.d("child_event_move",previousChildName.toString())
-        }
-
-        override fun onCancelled(error: DatabaseError) {
-            Log.d("child_event_erro","error")
-        }
-
-    }
-    private val DATABASE_URL = "https://fir-chat-ad096-default-rtdb.asia-southeast1.firebasedatabase.app"
-    private val database = FirebaseDatabase.getInstance(DATABASE_URL).reference*/
-
-    //////////////////////////////////////
     private val messageCardCornerRadius = 6
     private val messageCardCornerElevation = 10
     private val messageCardMargin = 12
@@ -109,16 +70,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setPage()
-        /*lifecycleScope.launch {
-            val resp = App.instnace.charc.testRest()
-            Log.d("test_rest",resp.data?.message?:"no response")
-        }*/
-
-        /*App.instnace.queryFcmToken {
-            Log.d("fcm_token_query",it?:"not found")
-        }*/
-
-        /*App.instnace.charc.sendChat()*/
 
         if(savedInstanceState==null){
             registerOnChange()
@@ -141,15 +92,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    /*private fun listenRoom() {
-        val path = getReferencePath()
-        database.child((path)).addListenerForSingleValueEvent(valueEventListener)
-        database.child(path).addChildEventListener(childEventListener)
-
-
-        isListening = true
-    }*/
 
 
     private fun registerOnChange() {
@@ -251,7 +193,9 @@ class MainActivity : ComponentActivity() {
                     ),
                 ) {
                     Box(modifier = Modifier
-                        .widthIn((configuration.screenWidthDp*messageCardMinSizeFactor).dp,(configuration.screenWidthDp*messageCardMaxSizeFactor).dp)){
+                        .widthIn((configuration.screenWidthDp*messageCardMinSizeFactor).dp,(configuration.screenWidthDp*messageCardMaxSizeFactor).dp)
+                        .width(IntrinsicSize.Min)
+                    ){
                         Column(modifier = Modifier
                             .align(if (message.sender == myId.value) Alignment.CenterEnd else Alignment.CenterStart)
                             .wrapContentSize()
@@ -273,6 +217,14 @@ class MainActivity : ComponentActivity() {
                                 chapPacketData?.text?:"",
                                 color = if(message.sender == myId.value) Color.Blue else Color.White
                             )
+                            Divider(
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                            Row(
+                                modifier = Modifier.align(Alignment.End)
+                            ){
+                                DateTime(DateTimeZone.UTC)
+                            }
                             //Text(message.rtmMessage.serverReceivedTs.toString())
                         }
                     }
@@ -287,12 +239,6 @@ class MainActivity : ComponentActivity() {
 
     private fun sendMessage(text: String) {
         chatBox?.insert(createNewTextChat(text))
-        /*database
-            .child(getReferencePath())
-            .push()
-            .setValue(
-                createNewTextChat(text)
-            )*/
     }
 
     private fun getReferencePath(): String {
@@ -387,9 +333,9 @@ class MainActivity : ComponentActivity() {
                 "https://fir-chat-ad096-default-rtdb.asia-southeast1.firebasedatabase.app",
                 "messages",
                 getRoom(),
-                chats
+                chats,
+                myId.value
             )
-            //listenRoom()
             setPage()
             populate()
         }
@@ -490,9 +436,5 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         chatBox?.clear()
-        /*if(isListening){
-            val path = getReferencePath()
-            database.child(path).removeEventListener(childEventListener)
-        }*/
     }
 }

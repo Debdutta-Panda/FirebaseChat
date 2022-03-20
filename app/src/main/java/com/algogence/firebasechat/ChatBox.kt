@@ -15,7 +15,8 @@ class ChatBox(
     private val url: String,
     private val bucket: String,
     private val room: String,
-    private val list: SnapshotStateList<Chat>
+    private val list: SnapshotStateList<Chat>,
+    private val myId: String
 ) {
     private val firepo = Firepo(url,"$bucket/$room")
     enum class ChatEvent{
@@ -48,7 +49,11 @@ class ChatBox(
                     }
                     else{
                         list.add(chat)
+                        if(chat.sender!=myId&&chat.receivedAt==0L){
+                            chat.receivedAt= utcTimestamp
+                        }
                         sortList()
+                        update(chat)
                     }
                 }
             }
