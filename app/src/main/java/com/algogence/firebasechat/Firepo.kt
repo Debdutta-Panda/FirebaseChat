@@ -1,11 +1,19 @@
 package com.algogence.firebasechat
 
 import com.google.firebase.database.*
+import com.google.firebase.database.ktx.database
+import com.google.firebase.ktx.Firebase
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 class Firepo(private val url: String, private val path: String) {
-    private val databaseReference = FirebaseDatabase.getInstance(url).reference
+    init {
+        Firebase.database.setPersistenceEnabled(true)
+    }
+    private val databaseReference = FirebaseDatabase.getInstance(url).apply {
+        setPersistenceEnabled(true)
+        getReference(path).keepSynced(true)
+    }.reference
 
     suspend fun snapshot(): DataSnapshot? =
         suspendCoroutine { cont ->
@@ -130,29 +138,12 @@ class Firepo(private val url: String, private val path: String) {
         unregisterChildEvents()
     }
 
-    fun insert(value: Any?){
+    fun put(id: String, value: Any?){
         databaseReference
-            .child(path)
-            .push()
+            .child("$path/$id")
+            //.push()
             .setValue(
                 value
             )
-    }
-
-    fun update(key: String, value: String, itemValue: Any){
-        databaseReference
-            .child(path)
-            .orderByChild(key)
-            .equalTo(value)
-            .get()
-            .addOnSuccessListener {
-                val k = it.key
-                databaseReference
-                    .child("$path/$k")
-                    .push()
-                    .setValue(
-                        value
-                    )
-            }
     }
 }

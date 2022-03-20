@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyItemScope
@@ -14,17 +15,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.algogence.firebasechat.ui.theme.FirebaseChatTheme
@@ -35,6 +35,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.joda.time.DateTime
 import org.joda.time.DateTimeZone
+import org.joda.time.format.DateTimeFormat
+import org.joda.time.format.DateTimeFormatter
 
 
 class MainActivity : ComponentActivity() {
@@ -48,7 +50,7 @@ class MainActivity : ComponentActivity() {
     private val messageCardCornerElevation = 10
     private val messageCardMargin = 12
     private val messageCardPadding = 12
-    private val messageCardMinSizeFactor = 0.125
+    private val messageCardMinSizeFactor = 0.25
     private val messageCardMaxSizeFactor = 0.75
     private val chats = mutableStateListOf<Chat>()
     val state = LazyListState()
@@ -57,11 +59,19 @@ class MainActivity : ComponentActivity() {
     val currentPage = mutableStateOf(Page.LOGIN)
 
 
+    fun scrollToBottomForce(){
+        CoroutineScope(Dispatchers.Main).launch {
+            if(chats.isNotEmpty()){
+                state.scrollToItem(chats.size-1)
+            }
+        }
+    }
     private fun scrollToBottom() {
         if(chats.size>0){
             CoroutineScope(Dispatchers.Main).launch {
-                if(chats.isNotEmpty()){
-                    state.scrollToItem(chats.size-1)
+                val last = state.layoutInfo.visibleItemsInfo.lastOrNull()?.index?:-1
+                if(last==chats.size-2){
+                    scrollToBottomForce()
                 }
             }
         }
@@ -169,6 +179,12 @@ class MainActivity : ComponentActivity() {
     }
     @Composable
     private fun LazyItemScope.MessageItem(message: Chat) {
+        var popupMenu by remember {
+            mutableStateOf(false)
+        }
+        if(message.sender!=myId.value&&message.seenAt==0L){
+            chatBox?.markSeen(message)
+        }
         val chapPacketData = message.data
         val configuration = LocalConfiguration.current
         Box(modifier = Modifier.fillMaxWidth()){
@@ -182,7 +198,10 @@ class MainActivity : ComponentActivity() {
                 Card(
                     modifier = Modifier
                         .wrapContentSize()
-                        .align(if (message.sender == myId.value) Alignment.CenterEnd else Alignment.CenterStart),
+                        .align(if (message.sender == myId.value) Alignment.CenterEnd else Alignment.CenterStart)
+                        .clickable {
+                            popupMenu = true
+                        },
                     elevation = messageCardCornerElevation.dp,
                     backgroundColor = if(message.sender == myId.value) Color.White else Color(0xff3838ff),
                     shape = RoundedCornerShape(
@@ -193,7 +212,10 @@ class MainActivity : ComponentActivity() {
                     ),
                 ) {
                     Box(modifier = Modifier
-                        .widthIn((configuration.screenWidthDp*messageCardMinSizeFactor).dp,(configuration.screenWidthDp*messageCardMaxSizeFactor).dp)
+                        .widthIn(
+                            (configuration.screenWidthDp * messageCardMinSizeFactor).dp,
+                            (configuration.screenWidthDp * messageCardMaxSizeFactor).dp
+                        )
                         .width(IntrinsicSize.Min)
                     ){
                         Column(modifier = Modifier
@@ -218,14 +240,92 @@ class MainActivity : ComponentActivity() {
                                 color = if(message.sender == myId.value) Color.Blue else Color.White
                             )
                             Divider(
-                                modifier = Modifier.padding(vertical = 4.dp)
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                color = if(message.sender==myId.value) Color.LightGray else Color.Gray
                             )
                             Row(
                                 modifier = Modifier.align(Alignment.End)
                             ){
-                                DateTime(DateTimeZone.UTC)
+                                val time = DateTime(message.createdAt,DateTimeZone.UTC).toDateTime(DateTimeZone.getDefault()).toString(
+                                    DateTimeFormat.forPattern("hh:mm a")
+                                )
+                                Text(
+                                    time,
+                                    modifier = Modifier.wrapContentSize(),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Visible,
+                                    fontSize = 12.sp,
+                                    color = if(message.sender==myId.value) Color.Gray else Color.White
+                                )
+                                if(message.sender==myId.value){
+                                    when{
+                                        message.seenAt>0->{
+                                            Icon(
+                                                imageVector = Icons.Filled.DoneAll,
+                                                tint = Color(0xff035efc),
+                                                contentDescription = "Seen",
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .padding(horizontal = 4.dp)
+                                            )
+                                        }
+                                        message.receivedAt>0->{
+                                            Icon(
+                                                imageVector = Icons.Filled.DoneAll,
+                                                tint = Color.Gray,
+                                                contentDescription = "Received",
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .padding(horizontal = 4.dp)
+                                            )
+                                        }
+                                        message.arrivedServerAt>0->{
+                                            Icon(
+                                                imageVector = Icons.Filled.Done,
+                                                tint = Color.Gray,
+                                                contentDescription = "Arrived at server",
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .padding(horizontal = 4.dp)
+                                            )
+                                        }
+                                        else->{
+                                            Icon(
+                                                imageVector = Icons.Filled.AccessTime,
+                                                tint = Color.Gray,
+                                                contentDescription = "Waiting",
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .padding(horizontal = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                             //Text(message.rtmMessage.serverReceivedTs.toString())
+                        }
+                    }
+                }
+
+                val context = LocalContext.current
+                DropdownMenu(
+                    expanded = popupMenu,
+                    offset = DpOffset((-40).dp, (-40).dp),
+                    onDismissRequest = { popupMenu = false }) {
+                    listOf(
+                        "Delete",
+                        "Forward",
+                        "Details"
+                    ).forEach {
+                        DropdownMenuItem(onClick = {
+                            Toast.makeText(
+                                context,
+                                "You clicked $it menu",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            popupMenu = false
+                        }) {
+                            Text(text = it)
                         }
                     }
                 }
@@ -335,7 +435,19 @@ class MainActivity : ComponentActivity() {
                 getRoom(),
                 chats,
                 myId.value
-            )
+            ){chat->
+                if(chat==null){
+                    scrollToBottomForce()
+                }
+                else{
+                    if(chat.sender==myId.value){
+                        scrollToBottomForce()
+                    }
+                    else{
+                        scrollToBottom()
+                    }
+                }
+            }
             setPage()
             populate()
         }

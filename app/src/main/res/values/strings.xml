@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">FirebaseChat</string>
+    <string name="title_activity_popupmenu">PopupmenuActivity</string>
 </resources>

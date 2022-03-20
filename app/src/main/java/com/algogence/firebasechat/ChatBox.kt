@@ -1,14 +1,12 @@
 package com.algogence.firebasechat
 
 import android.util.Log
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.google.firebase.database.DataSnapshot
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import org.json.JSONObject
 
 
 class ChatBox(
@@ -16,7 +14,8 @@ class ChatBox(
     private val bucket: String,
     private val room: String,
     private val list: SnapshotStateList<Chat>,
-    private val myId: String
+    private val myId: String,
+    private val onAdd: (Chat?)->Unit
 ) {
     private val firepo = Firepo(url,"$bucket/$room")
     enum class ChatEvent{
@@ -49,11 +48,12 @@ class ChatBox(
                     }
                     else{
                         list.add(chat)
+                        sortList()
+                        onAdd(chat)
                         if(chat.sender!=myId&&chat.receivedAt==0L){
                             chat.receivedAt= utcTimestamp
+                            update("${chat.chatId}/receivedAt",chat.receivedAt)
                         }
-                        sortList()
-                        update(chat)
                     }
                 }
             }
@@ -143,15 +143,11 @@ class ChatBox(
     }
 
     fun insert(chat: Chat){
-        firepo.insert(chat)
+        firepo.put(chat.chatId,chat)
     }
 
-    fun update(chat: Chat){
-        firepo.update(
-            "chatId",
-            chat.chatId,
-            chat
-        )
+    fun update(key: String,value: Any){
+        firepo.put(key,value)
     }
 
     private fun startListening(){
@@ -163,6 +159,7 @@ class ChatBox(
             Log.d("time_elapsed",d.toString())
             list.addAll(chats)
             sortList()
+            onAdd(null)
             firepo.startListening()
         }
 
@@ -170,5 +167,9 @@ class ChatBox(
 
     private fun stopListening(){
         firepo.stopListening()
+    }
+
+    fun markSeen(chat: Chat) {
+        update("${chat.chatId}/seenAt", utcTimestamp)
     }
 }
