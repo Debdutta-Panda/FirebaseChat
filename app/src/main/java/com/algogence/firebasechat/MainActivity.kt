@@ -310,7 +310,7 @@ class MainActivity : ComponentActivity() {
                 val context = LocalContext.current
                 DropdownMenu(
                     expanded = popupMenu,
-                    offset = DpOffset((-40).dp, (-40).dp),
+                    offset = DpOffset(0.dp, 0.dp),
                     onDismissRequest = { popupMenu = false }) {
                     listOf(
                         "Delete",
