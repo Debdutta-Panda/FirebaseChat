@@ -7,6 +7,18 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 class Firepo(private val url: String, private val path: String) {
+    companion object{
+        fun set(url: String, path: String, value: String) {
+            FirebaseDatabase
+                .getInstance(url)
+                .reference
+                .child(path)
+                .setValue(
+                    value
+                )
+        }
+
+    }
     init {
         Firebase.database.setPersistenceEnabled(true)
     }

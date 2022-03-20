@@ -1,7 +1,6 @@
 package com.algogence.firebasechat
 
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,19 +15,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.NotInterested
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.algogence.firebasechat.ui.theme.FirebaseChatTheme
-import com.google.firebase.database.*
 import com.pixplicity.easyprefs.library.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +39,6 @@ import kotlinx.coroutines.launch
 import org.joda.time.DateTime
 import org.joda.time.DateTimeZone
 import org.joda.time.format.DateTimeFormat
-import org.joda.time.format.DateTimeFormatter
 
 
 class MainActivity : ComponentActivity() {
@@ -46,7 +48,7 @@ class MainActivity : ComponentActivity() {
         PEER,
         CHAT
     }
-    private val messageCardCornerRadius = 6
+    private val messageCardCornerRadius = 12
     private val messageCardCornerElevation = 10
     private val messageCardMargin = 12
     private val messageCardPadding = 12
@@ -179,6 +181,10 @@ class MainActivity : ComponentActivity() {
     }
     @Composable
     private fun LazyItemScope.MessageItem(message: Chat) {
+        if(message.deleted){
+            DeletedMessageItem(message)
+            return
+        }
         var popupMenu by remember {
             mutableStateOf(false)
         }
@@ -198,17 +204,14 @@ class MainActivity : ComponentActivity() {
                 Card(
                     modifier = Modifier
                         .wrapContentSize()
-                        .align(if (message.sender == myId.value) Alignment.CenterEnd else Alignment.CenterStart)
-                        .clickable {
-                            popupMenu = true
-                        },
+                        .align(if (message.sender == myId.value) Alignment.CenterEnd else Alignment.CenterStart),
                     elevation = messageCardCornerElevation.dp,
                     backgroundColor = if(message.sender == myId.value) Color.White else Color(0xff3838ff),
                     shape = RoundedCornerShape(
-                        topStart = messageCardCornerRadius.dp,
-                        topEnd = messageCardCornerRadius.dp,
-                        bottomEnd = if(message.sender == myId.value) messageCardCornerRadius.dp else 0.dp,
-                        bottomStart = if(message.sender == myId.value) 0.dp else messageCardCornerRadius.dp
+                        bottomStart = messageCardCornerRadius.dp,
+                        bottomEnd = messageCardCornerRadius.dp,
+                        topEnd = if(message.sender != myId.value) messageCardCornerRadius.dp else 0.dp,
+                        topStart = if(message.sender != myId.value) 0.dp else messageCardCornerRadius.dp
                     ),
                 ) {
                     Box(modifier = Modifier
@@ -225,20 +228,69 @@ class MainActivity : ComponentActivity() {
                             horizontalAlignment = if(message.sender == myId.value) Alignment.End else Alignment.Start
                         ){
                             if(message.sender != myId.value){
-                                Text(
-                                    message.sender,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                /*Divider(
-                                    color = Color(0xff5757ff),
-                                    modifier = Modifier.padding(vertical = 4.dp)
-                                )*/
+
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ){
+                                    Box() {
+                                        IconButton(
+                                            onClick = {
+                                                popupMenu = true
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.KeyboardArrowDown,
+                                                tint = Color.Gray,
+                                                contentDescription = "Menu"
+                                            )
+                                        }
+                                        DropdownMenuView(popupMenu,message.sender==myId.value){
+                                            popupMenu = false
+                                        }
+                                    }
+
+                                    Text(
+                                        message.sender,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
                             }
-                            Text(
-                                chapPacketData?.text?:"",
-                                color = if(message.sender == myId.value) Color.Blue else Color.White
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ){
+                                Text(
+                                    chapPacketData?.text?:"",
+                                    color = if(message.sender == myId.value) Color.Blue else Color.White
+                                )
+                                if(message.sender==myId.value){
+                                    Box() {
+                                        IconButton(
+                                            onClick = {
+                                                popupMenu = true
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.KeyboardArrowDown,
+                                                tint = Color.Gray,
+                                                contentDescription = "Menu"
+                                            )
+                                        }
+                                        DropdownMenuView(popupMenu,message.sender==myId.value){
+                                            popupMenu = false
+                                            when(it){
+                                                "Delete"->{
+                                                    deleteChat(message)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             Divider(
                                 modifier = Modifier.padding(vertical = 4.dp),
                                 color = if(message.sender==myId.value) Color.LightGray else Color.Gray
@@ -307,27 +359,134 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                val context = LocalContext.current
-                DropdownMenu(
-                    expanded = popupMenu,
-                    offset = DpOffset(0.dp, 0.dp),
-                    onDismissRequest = { popupMenu = false }) {
-                    listOf(
-                        "Delete",
-                        "Forward",
-                        "Details"
-                    ).forEach {
-                        DropdownMenuItem(onClick = {
-                            Toast.makeText(
-                                context,
-                                "You clicked $it menu",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            popupMenu = false
-                        }) {
-                            Text(text = it)
+            }
+        }
+    }
+
+    private @Composable
+    fun LazyItemScope.DeletedMessageItem(message: Chat) {
+        val time = DateTime(message.createdAt,DateTimeZone.UTC).toDateTime(DateTimeZone.getDefault()).toString(
+            DateTimeFormat.forPattern("hh:mm a")
+        )
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+
+                    .padding(messageCardMargin.dp)
+                    .align(
+                        if (message.sender == myId.value) Alignment.CenterEnd else Alignment.CenterStart
+                    )
+            ) {
+                Card(
+                    backgroundColor = if(message.sender == myId.value) Color.White else Color(0xff3838ff),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.NotInterested,
+                            tint = Color.Gray,
+                            contentDescription = "Deleted",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            "Deleted",
+                            color = Color.Gray,
+                            fontStyle = FontStyle.Italic,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            time,
+                            modifier = Modifier.wrapContentSize(),
+                            maxLines = 1,
+                            overflow = TextOverflow.Visible,
+                            fontSize = 12.sp,
+                            color = if (message.sender == myId.value) Color.Gray else Color.White
+                        )
+                        if (message.sender == myId.value) {
+                            when {
+                                message.seenAt > 0 -> {
+                                    Icon(
+                                        imageVector = Icons.Filled.DoneAll,
+                                        tint = Color(0xff035efc),
+                                        contentDescription = "Seen",
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .padding(horizontal = 4.dp)
+                                    )
+                                }
+                                message.receivedAt > 0 -> {
+                                    Icon(
+                                        imageVector = Icons.Filled.DoneAll,
+                                        tint = Color.Gray,
+                                        contentDescription = "Received",
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .padding(horizontal = 4.dp)
+                                    )
+                                }
+                                message.arrivedServerAt > 0 -> {
+                                    Icon(
+                                        imageVector = Icons.Filled.Done,
+                                        tint = Color.Gray,
+                                        contentDescription = "Arrived at server",
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .padding(horizontal = 4.dp)
+                                    )
+                                }
+                                else -> {
+                                    Icon(
+                                        imageVector = Icons.Filled.AccessTime,
+                                        tint = Color.Gray,
+                                        contentDescription = "Waiting",
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .padding(horizontal = 4.dp)
+                                    )
+                                }
+                            }
                         }
                     }
+
+                }
+            }
+        }
+    }
+
+    private fun deleteChat(message: Chat) {
+        chatBox?.delete(message.chatId)
+    }
+
+    private @Composable
+    fun DropdownMenuView(popupMenu: Boolean,fromMe: Boolean,onDismissRequest: (String?)->Unit) {
+        DropdownMenu(
+            expanded = popupMenu,
+            offset = DpOffset(0.dp, 0.dp),
+            onDismissRequest = {
+                onDismissRequest(null)
+            }) {
+            (
+                    if(fromMe){
+                        listOf(
+                            "Forward",
+                            "Details",
+                            "Delete",
+                        )
+                    }
+                    else{
+                        listOf(
+                            "Forward",
+                            "Details",
+                        )
+                    }
+            ).forEach {
+                DropdownMenuItem(onClick = {
+                    onDismissRequest(it)
+                }) {
+                    Text(text = it)
                 }
             }
         }
@@ -430,8 +589,6 @@ class MainActivity : ComponentActivity() {
         else{
             peerId.value = value
             chatBox = ChatBox(
-                "https://fir-chat-ad096-default-rtdb.asia-southeast1.firebasedatabase.app",
-                "messages",
                 getRoom(),
                 chats,
                 myId.value
@@ -524,6 +681,7 @@ class MainActivity : ComponentActivity() {
 
     private fun saveSenderId(senderId: String) {
         Prefs.putString("userid",senderId)
+        ChatBox.updateFcmToken()
         myId.value = senderId
     }
 

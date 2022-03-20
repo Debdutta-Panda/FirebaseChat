@@ -1,22 +1,45 @@
 package com.algogence.firebasechat
 
+import android.provider.Settings
+import android.provider.Settings.Secure.ANDROID_ID
 import android.util.Log
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.google.firebase.database.DataSnapshot
 import com.google.gson.Gson
+import com.pixplicity.easyprefs.library.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 
 class ChatBox(
-    private val url: String,
-    private val bucket: String,
     private val room: String,
     private val list: SnapshotStateList<Chat>,
     private val myId: String,
     private val onAdd: (Chat?)->Unit
 ) {
+    companion object{
+        val url = Constants.FIREBASE_DATABASE_URL
+        val bucket = "messages"
+        fun updateFcmToken() {
+            val userId = Prefs.getString("userid")
+            if(userId.isEmpty()){
+                return
+            }
+            var android_id = Prefs.getString(ANDROID_ID)
+            if(android_id.isEmpty()){
+                android_id = "default"
+            }
+            val fcmToken = Prefs.getString("fcm_token")
+            if(fcmToken.isEmpty()){
+                return
+            }
+            val path = "fcm_tokens/$userId/$android_id"
+            Firepo.set(url,path,fcmToken)
+            Prefs.putBoolean("fcm_synced",true)
+        }
+    }
+
     private val firepo = Firepo(url,"$bucket/$room")
     enum class ChatEvent{
         ADDED,
@@ -171,5 +194,9 @@ class ChatBox(
 
     fun markSeen(chat: Chat) {
         update("${chat.chatId}/seenAt", utcTimestamp)
+    }
+
+    fun delete(chatId: String) {
+        update("$chatId/deleted", true)
     }
 }
